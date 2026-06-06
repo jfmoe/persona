@@ -1,10 +1,8 @@
 /**
- * `persona add <source>` — import a local persona mask (人格面具) from a file or
- * directory into `~/.persona/<id>/` and record the import in the
- * 来源与内容账本 (source and content ledger, `~/.persona/.lock.json`).
- *
- * Scope: local sources only (ADR-0003). GitHub remote sources are handled by a
- * separate command slice (#5).
+ * `persona add <source>` — import a persona mask (人格面具) from a local file,
+ * local directory, or GitHub remote source into `~/.persona/<id>/` and record
+ * the import in the 来源与内容账本 (source and content ledger,
+ * `~/.persona/.lock.json`).
  *
  * Safety rules enforced here (not in the validator):
  *  - Path traversal and path-unsafe ids → hard fail
@@ -12,6 +10,15 @@
  *
  * Content rules are delegated to `validateMask` (issue #3) per the validator
  * contract: "Source-path and symlink safety belong to `add`, not here."
+ *
+ * GitHub remote sources:
+ *  - Detected when the source string does NOT start with `.`, `/`, or `~`
+ *    and matches the GitHub shorthand / URL patterns.
+ *  - Fetched via `git clone --depth 1` into a temp directory, then processed
+ *    through the same local import pipeline.
+ *  - The `PERSONA_GIT_REMOTE_BASE` environment variable overrides
+ *    `https://github.com/` with an alternative base (e.g. `file:///tmp/repos/`)
+ *    to enable zero-network integration tests.
  */
 
 import {
@@ -20,13 +27,16 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createInterface } from 'node:readline'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve, basename } from 'node:path'
 import { parseArgs } from 'node:util'
 import { parsePersonaMd } from './persona-md.js'
@@ -45,7 +55,7 @@ interface MaskCandidate {
 
 // ─── lock file types ─────────────────────────────────────────────────────────
 
-interface LockEntry {
+interface LocalLockEntry {
   sourceType: 'local'
   sourceUrl: string
   maskFolderHash: string
@@ -53,9 +63,110 @@ interface LockEntry {
   updatedAt: string
 }
 
+interface GitHubLockEntry {
+  sourceType: 'github'
+  source: string
+  sourceUrl: string
+  ref?: string
+  maskPath: string
+  maskFolderHash: string
+  importedAt: string
+  updatedAt: string
+}
+
+type LockEntry = LocalLockEntry | GitHubLockEntry
+
 interface LockFile {
   version: 1
   personas: Record<string, LockEntry>
+}
+
+// ─── GitHub source parsing ────────────────────────────────────────────────────
+
+/**
+ * Parsed representation of a GitHub source string.
+ *
+ * Produced by `parseGitHubSource`. All fields beyond `source` and `cloneUrl`
+ * are optional — only set when the input explicitly specifies them.
+ */
+export interface ParsedGitHubSource {
+  /** Canonical shorthand, e.g. `owner/repo`. */
+  source: string
+  /** HTTPS clone URL, e.g. `https://github.com/owner/repo.git`. */
+  cloneUrl: string
+  /** Requested Git ref (branch / tag / SHA). Undefined means default branch. */
+  ref?: string
+  /** Path inside the repo to the mask directory or file. Undefined means root. */
+  subPath?: string
+  /** Mask id to select when the source contains multiple masks. */
+  personaId?: string
+}
+
+/**
+ * Parse a GitHub source string into its components.
+ *
+ * Accepted forms:
+ *   owner/repo
+ *   owner/repo/path/to/mask
+ *   owner/repo@id
+ *   owner/repo#ref
+ *   owner/repo#ref@id
+ *   owner/repo/path/to/mask#ref@id
+ *   https://github.com/owner/repo
+ *   https://github.com/owner/repo.git
+ *   https://github.com/owner/repo/tree/<ref>/path/to/mask
+ *
+ * Returns `null` when the input is clearly a local path (starts with `.`, `/`,
+ * `~`) or does not look like a GitHub source.
+ *
+ * Pure function — no I/O. Exported for unit tests.
+ */
+export function parseGitHubSource(input: string): ParsedGitHubSource | null {
+  // ── Local-path fast exits ────────────────────────────────────────────────
+  if (input.startsWith('./') || input.startsWith('../') || input.startsWith('/') || input.startsWith('~')) {
+    return null
+  }
+
+  // ── Full GitHub URL ──────────────────────────────────────────────────────
+  const githubUrlPattern = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(\.git)?(\/tree\/([^/]+)(\/(.+))?)?$/
+  const urlMatch = input.match(githubUrlPattern)
+  if (urlMatch) {
+    const owner = urlMatch[1]!
+    const repo = urlMatch[2]!
+    const ref = urlMatch[5]
+    const subPath = urlMatch[7]
+    return {
+      source: `${owner}/${repo}`,
+      cloneUrl: `https://github.com/${owner}/${repo}.git`,
+      ...(ref !== undefined ? { ref } : {}),
+      ...(subPath !== undefined ? { subPath } : {}),
+    }
+  }
+
+  // ── Shorthand: owner/repo[/sub/path][#ref][@id] ──────────────────────────
+  // Must start with "word/word" pattern (no protocol, no dots-only segments)
+  // "owner" and "repo" must be non-empty valid GitHub name segments
+  const shorthandPattern = /^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)((?:\/[^#@]+)*)?(#([^@]+))?(@(.+))?$/
+  const shMatch = input.match(shorthandPattern)
+  if (shMatch) {
+    const owner = shMatch[1]!
+    const repo = shMatch[2]!
+    const subPathRaw = shMatch[3] // e.g. '/path/to/mask' or ''
+    const ref = shMatch[5]
+    const personaId = shMatch[7]
+
+    const subPath = subPathRaw ? subPathRaw.replace(/^\//, '') : undefined
+
+    return {
+      source: `${owner}/${repo}`,
+      cloneUrl: `https://github.com/${owner}/${repo}.git`,
+      ...(ref !== undefined ? { ref } : {}),
+      ...(subPath ? { subPath } : {}),
+      ...(personaId !== undefined ? { personaId } : {}),
+    }
+  }
+
+  return null
 }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -321,10 +432,301 @@ function writeLock(lockPath: string, lock: LockFile): void {
   writeFileSync(lockPath, JSON.stringify(sorted, null, 2) + '\n', 'utf8')
 }
 
+// ─── shared import pipeline ───────────────────────────────────────────────────
+
+/**
+ * Options for the shared mask-import pipeline.
+ */
+interface ImportOptions {
+  /** `--persona <id>` — pre-select a mask by id. */
+  personaId: string | undefined
+  /** `--force` — overwrite an existing mask without prompting. */
+  force: boolean
+  /** Lock entry to write. Built by the caller (local vs github). */
+  buildLockEntry: (id: string, targetDir: string, existing: LockEntry | undefined) => LockEntry
+}
+
+/**
+ * Shared pipeline: discover a mask inside `searchDir`, validate it, copy it
+ * into `~/.persona/<id>/`, and write a lock entry.
+ *
+ * `searchDir` is treated as a local directory (symlink checks applied).
+ * The `isSingleFile` flag is `true` when `searchDir` is actually a single
+ * `persona.md` file path rather than a directory.
+ */
+async function importFromDirectory(
+  searchDir: string,
+  isSingleFile: boolean,
+  opts: ImportOptions,
+): Promise<number> {
+  let candidate: MaskCandidate
+
+  if (isSingleFile) {
+    candidate = { dir: searchDir, file: searchDir }
+  } else {
+    // Check for symlinks anywhere inside the source directory
+    const symlinkFound = findSymlink(searchDir)
+    if (symlinkFound !== null) {
+      process.stderr.write(
+        `persona add: source directory contains a symlink, which is not allowed: ${symlinkFound}\n`,
+      )
+      return 1
+    }
+
+    // Try discovery: root level first (depth 0), then up to 2 levels
+    const directCandidates = discoverMasks(searchDir, 0)
+    if (directCandidates.length === 1 && directCandidates[0] !== undefined) {
+      candidate = directCandidates[0]
+    } else if (directCandidates.length === 0) {
+      const shallowCandidates = discoverMasks(searchDir, 2)
+
+      if (shallowCandidates.length === 0) {
+        const deepCandidates = discoverMasks(searchDir, 10)
+        if (deepCandidates.length > 0) {
+          process.stderr.write(
+            `persona add: persona masks were found but only at more than 2 levels deep — please provide a more specific source path\n`,
+          )
+        } else {
+          process.stderr.write(
+            `persona add: no persona.md found in ${searchDir}\n`,
+          )
+        }
+        return 1
+      }
+
+      if (shallowCandidates.length > 1) {
+        if (opts.personaId !== undefined) {
+          const selected = selectFromMultiple(shallowCandidates, opts.personaId)
+          if (selected === null) return 1
+          candidate = selected
+        } else if (process.stdin.isTTY) {
+          const selected = await promptSelectCandidate(shallowCandidates)
+          if (selected === null) return 1
+          candidate = selected
+        } else {
+          const selected = selectFromMultiple(shallowCandidates, undefined)
+          if (selected === null) return 1
+          candidate = selected
+        }
+      } else {
+        candidate = shallowCandidates[0]!
+      }
+    } else {
+      // directCandidates.length > 1: multiple at root level
+      if (opts.personaId !== undefined) {
+        const selected = selectFromMultiple(directCandidates, opts.personaId)
+        if (selected === null) return 1
+        candidate = selected
+      } else if (process.stdin.isTTY) {
+        const selected = await promptSelectCandidate(directCandidates)
+        if (selected === null) return 1
+        candidate = selected
+      } else {
+        const selected = selectFromMultiple(directCandidates, undefined)
+        if (selected === null) return 1
+        candidate = selected
+      }
+    }
+  }
+
+  // ── Validate the candidate mask ──────────────────────────────────────────
+
+  const validationResult = validatePersonaMdFile(candidate.file)
+  if (validationResult !== null) {
+    process.stderr.write(
+      `persona add: ${candidate.file} is not a valid persona mask:\n`,
+    )
+    for (const msg of validationResult.errors) {
+      process.stderr.write(`  - ${msg}\n`)
+    }
+    return 1
+  }
+
+  const content = readFileSync(candidate.file, 'utf8')
+  const parsed = parsePersonaMd(content)
+  const id = parsed.frontmatter['id']!
+
+  // ── Check for overwrite ───────────────────────────────────────────────────
+
+  const home = personaHome()
+  const targetDir = join(home, id)
+
+  if (existsSync(targetDir) && !opts.force) {
+    if (process.stdin.isTTY) {
+      const confirmed = await promptOverwrite(id, targetDir)
+      if (!confirmed) {
+        process.stderr.write(`persona add: import cancelled\n`)
+        return 1
+      }
+    } else {
+      process.stderr.write(
+        `persona add: mask "${id}" already exists at ${targetDir} — use --force to overwrite\n`,
+      )
+      return 1
+    }
+  }
+
+  // ── Copy mask into ~/.persona/<id>/ ──────────────────────────────────────
+
+  if (isSingleFile) {
+    if (existsSync(targetDir)) {
+      rmSync(targetDir, { recursive: true, force: true })
+    }
+    mkdirSync(targetDir, { recursive: true })
+    copyFileSync(candidate.file, join(targetDir, 'persona.md'))
+  } else {
+    if (existsSync(targetDir)) {
+      rmSync(targetDir, { recursive: true, force: true })
+    }
+    cpSync(candidate.dir, targetDir, { recursive: true })
+  }
+
+  // ── Write lock entry (来源与内容账本) ────────────────────────────────────
+
+  const lockPath = join(home, '.lock.json')
+  const lock = readLock(lockPath)
+  const existing = lock.personas[id]
+
+  lock.personas[id] = opts.buildLockEntry(id, targetDir, existing)
+
+  writeLock(lockPath, lock)
+
+  return 0
+}
+
+// ─── GitHub import ────────────────────────────────────────────────────────────
+
+/**
+ * Resolve the actual clone base URL, applying the `PERSONA_GIT_REMOTE_BASE`
+ * seam for zero-network testing.
+ *
+ * When `PERSONA_GIT_REMOTE_BASE` is set (e.g. `file:///tmp/repos/`), cloneUrl
+ * `https://github.com/owner/repo.git` becomes
+ * `file:///tmp/repos/owner/repo` (without `.git` for file:// protocol).
+ */
+function resolveCloneUrl(cloneUrl: string): string {
+  const base = process.env['PERSONA_GIT_REMOTE_BASE']
+  if (!base) return cloneUrl
+
+  // Strip trailing slash from base, then rebuild
+  const trimmedBase = base.replace(/\/$/, '')
+  // cloneUrl is always https://github.com/owner/repo.git
+  const match = cloneUrl.match(/github\.com\/(.+?)(?:\.git)?$/)
+  if (!match) return cloneUrl
+  const ownerRepo = match[1]!
+  return `${trimmedBase}/${ownerRepo}`
+}
+
+/**
+ * Import a GitHub source: shallow-clone to a temp dir, then run the shared
+ * import pipeline. The temp dir is cleaned up regardless of success/failure.
+ */
+async function runAddGitHub(
+  parsed: ParsedGitHubSource,
+  personaId: string | undefined,
+  force: boolean,
+): Promise<number> {
+  const cloneUrl = resolveCloneUrl(parsed.cloneUrl)
+  const tmpDir = mkdtempSync(join(tmpdir(), 'persona-github-'))
+
+  try {
+    // ── Shallow clone ──────────────────────────────────────────────────────
+    //
+    // Every git argument is passed through a `spawnSync` argv array (never a
+    // shell string), so a hostile `ref` like `main; rm -rf ~` cannot break out
+    // into the shell.
+    //
+    // We fetch the requested ref explicitly instead of `git clone --branch`:
+    // `--branch` only accepts branch/tag names, but a ref may also be a commit
+    // SHA (the CLI does not classify ref types — fetch success is the only
+    // validity test). `git fetch --depth 1 origin <ref>` shallow-fetches a
+    // branch, tag, or reachable commit SHA uniformly; `HEAD` covers the
+    // no-ref case (the remote's default branch).
+    const fetchRef = parsed.ref ?? 'HEAD'
+    const gitSteps: string[][] = [
+      ['init', '-q', tmpDir],
+      ['-C', tmpDir, 'remote', 'add', 'origin', cloneUrl],
+      ['-C', tmpDir, 'fetch', '--depth', '1', 'origin', fetchRef],
+      ['-C', tmpDir, 'checkout', '-q', '--detach', 'FETCH_HEAD'],
+    ]
+    for (const args of gitSteps) {
+      const result = spawnSync('git', args, { stdio: 'pipe', encoding: 'utf8' })
+      if (result.status !== 0) {
+        const detail = (result.stderr || (result.error ? String(result.error) : '')).trim()
+        const atRef = parsed.ref !== undefined ? ` at ref "${parsed.ref}"` : ''
+        process.stderr.write(`persona add: failed to clone ${cloneUrl}${atRef}: ${detail}\n`)
+        return 1
+      }
+    }
+
+    // Drop the `.git` metadata directory before discovery/import: it must not
+    // be scanned for symlinks, copied into the mask folder, or folded into
+    // `maskFolderHash` (which would make the hash non-deterministic).
+    rmSync(join(tmpDir, '.git'), { recursive: true, force: true })
+
+    // ── Determine search root inside the clone ─────────────────────────────
+
+    // personaId from `@id` syntax takes precedence over `--persona`, but both
+    // end up in the same `personaId` parameter (the caller merges them).
+    const effectivePersonaId = personaId
+
+    const searchRoot = parsed.subPath ? join(tmpDir, parsed.subPath) : tmpDir
+
+    if (!existsSync(searchRoot)) {
+      process.stderr.write(
+        `persona add: path "${parsed.subPath}" not found in ${cloneUrl}\n`,
+      )
+      return 1
+    }
+
+    const searchStat = lstatSync(searchRoot)
+    const isSingleFile = searchStat.isFile()
+
+    // ── Build the lock-entry factory for GitHub ─────────────────────────────
+
+    const maskPath = parsed.subPath ?? ''
+    const sourceUrl = `https://github.com/${parsed.source}.git`
+
+    const buildLockEntry = (_id: string, targetDir: string, existing: LockEntry | undefined): GitHubLockEntry => {
+      const now = new Date().toISOString()
+      const maskFolderHash = computeFolderHash(targetDir)
+      // Build with a stable field order (ref right after sourceUrl, matching
+      // the interface and the PRD lock example) so serialized entries are
+      // deterministic whether or not a ref is present.
+      const entry: GitHubLockEntry = {
+        sourceType: 'github',
+        source: parsed.source,
+        sourceUrl,
+        ...(parsed.ref !== undefined ? { ref: parsed.ref } : {}),
+        maskPath,
+        maskFolderHash,
+        importedAt: existing?.importedAt ?? now,
+        updatedAt: now,
+      }
+      return entry
+    }
+
+    return await importFromDirectory(searchRoot, isSingleFile, {
+      personaId: effectivePersonaId,
+      force,
+      buildLockEntry,
+    })
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true })
+  }
+}
+
 // ─── main command ─────────────────────────────────────────────────────────────
 
 /**
- * `persona add <source>` — validate and import a local persona mask.
+ * `persona add <source>` — validate and import a persona mask.
+ *
+ * Source can be:
+ *   - A local file path (absolute or relative, starting with `.`, `/`, or `~`)
+ *   - A local directory path
+ *   - A GitHub shorthand: `owner/repo`, `owner/repo/path`, `owner/repo@id`,
+ *     `owner/repo#ref@id`
+ *   - A full GitHub URL: `https://github.com/owner/repo/tree/<ref>/path`
  *
  * Options:
  *   --persona <id>   Select a specific mask from a multi-mask source
@@ -351,9 +753,19 @@ export async function runAdd(rest: string[]): Promise<number> {
     return 2
   }
 
-  const resolvedSource = resolve(sourcePath)
+  // ── Route: GitHub vs local ───────────────────────────────────────────────
 
-  // ── 1. Check source exists ──────────────────────────────────────────────
+  const githubSource = parseGitHubSource(sourcePath)
+  if (githubSource !== null) {
+    // Merge @id from source shorthand with --persona flag (--persona wins on
+    // conflict, but both express the same intent)
+    const personaId = values.persona ?? githubSource.personaId
+    return runAddGitHub(githubSource, personaId, values.force ?? false)
+  }
+
+  // ── Local source path ────────────────────────────────────────────────────
+
+  const resolvedSource = resolve(sourcePath)
 
   if (!existsSync(resolvedSource)) {
     process.stderr.write(`persona add: source does not exist: ${resolvedSource}\n`)
@@ -370,168 +782,26 @@ export async function runAdd(rest: string[]): Promise<number> {
     return 1
   }
 
-  // ── 2. Determine the mask candidate ─────────────────────────────────────
-
-  let candidate: MaskCandidate
-  let isSingleFile = false
-
-  if (sourceStat.isFile()) {
-    // Single-file import: the file itself is the persona.md
-    candidate = { dir: resolvedSource, file: resolvedSource }
-    isSingleFile = true
-  } else if (sourceStat.isDirectory()) {
-    // Check for symlinks anywhere inside the source directory
-    const symlinkFound = findSymlink(resolvedSource)
-    if (symlinkFound !== null) {
-      process.stderr.write(
-        `persona add: source directory contains a symlink, which is not allowed: ${symlinkFound}\n`,
-      )
-      return 1
-    }
-
-    // Try discovery: root level first (depth 0), then up to 2 levels
-    const directCandidates = discoverMasks(resolvedSource, 0)
-    if (directCandidates.length === 1 && directCandidates[0] !== undefined) {
-      // Directory itself has persona.md → single mask
-      candidate = directCandidates[0]
-    } else if (directCandidates.length === 0) {
-      // Go deeper — up to 2 levels
-      const shallowCandidates = discoverMasks(resolvedSource, 2)
-
-      if (shallowCandidates.length === 0) {
-        // Check if there are any deeper (> 2 levels)
-        const deepCandidates = discoverMasks(resolvedSource, 10)
-        if (deepCandidates.length > 0) {
-          process.stderr.write(
-            `persona add: persona masks were found but only at more than 2 levels deep — please provide a more specific source path\n`,
-          )
-        } else {
-          process.stderr.write(
-            `persona add: no persona.md found in ${resolvedSource}\n`,
-          )
-        }
-        return 1
-      }
-
-      // Multiple masks found
-      if (shallowCandidates.length > 1) {
-        if (values.persona !== undefined) {
-          // --persona given: filter by id (synchronous)
-          const selected = selectFromMultiple(shallowCandidates, values.persona)
-          if (selected === null) return 1
-          candidate = selected
-        } else if (process.stdin.isTTY) {
-          // Interactive selection
-          const selected = await promptSelectCandidate(shallowCandidates)
-          if (selected === null) return 1
-          candidate = selected
-        } else {
-          // Non-interactive hard fail
-          const selected = selectFromMultiple(shallowCandidates, undefined)
-          if (selected === null) return 1
-          candidate = selected
-        }
-      } else {
-        candidate = shallowCandidates[0]!
-      }
-    } else {
-      // directCandidates.length > 1: multiple at root level
-      if (values.persona !== undefined) {
-        const selected = selectFromMultiple(directCandidates, values.persona)
-        if (selected === null) return 1
-        candidate = selected
-      } else if (process.stdin.isTTY) {
-        const selected = await promptSelectCandidate(directCandidates)
-        if (selected === null) return 1
-        candidate = selected
-      } else {
-        const selected = selectFromMultiple(directCandidates, undefined)
-        if (selected === null) return 1
-        candidate = selected
-      }
-    }
-  } else {
+  if (!sourceStat.isFile() && !sourceStat.isDirectory()) {
     process.stderr.write(`persona add: source is neither a file nor a directory: ${resolvedSource}\n`)
     return 1
   }
 
-  // ── 3. Validate the candidate mask ──────────────────────────────────────
+  const isSingleFile = sourceStat.isFile()
 
-  const validationResult = validatePersonaMdFile(candidate.file)
-  if (validationResult !== null) {
-    process.stderr.write(
-      `persona add: ${candidate.file} is not a valid persona mask:\n`,
-    )
-    for (const msg of validationResult.errors) {
-      process.stderr.write(`  - ${msg}\n`)
-    }
-    return 1
-  }
-
-  // Re-parse for id (already validated above)
-  const content = readFileSync(candidate.file, 'utf8')
-  const parsed = parsePersonaMd(content)
-  const id = parsed.frontmatter['id']!
-
-  // ── 4. Check for overwrite ───────────────────────────────────────────────
-
-  const home = personaHome()
-  const targetDir = join(home, id)
-
-  if (existsSync(targetDir) && !values.force) {
-    if (process.stdin.isTTY) {
-      // Interactive: ask the user
-      const confirmed = await promptOverwrite(id, targetDir)
-      if (!confirmed) {
-        process.stderr.write(`persona add: import cancelled\n`)
-        return 1
+  return importFromDirectory(resolvedSource, isSingleFile, {
+    personaId: values.persona,
+    force: values.force ?? false,
+    buildLockEntry: (_id, targetDir, existing) => {
+      const now = new Date().toISOString()
+      const maskFolderHash = computeFolderHash(targetDir)
+      return {
+        sourceType: 'local',
+        sourceUrl: resolvedSource,
+        maskFolderHash,
+        importedAt: existing?.importedAt ?? now,
+        updatedAt: now,
       }
-    } else {
-      // Non-interactive hard fail
-      process.stderr.write(
-        `persona add: mask "${id}" already exists at ${targetDir} — use --force to overwrite\n`,
-      )
-      return 1
-    }
-  }
-
-  // ── 5. Copy mask into ~/.persona/<id>/ ──────────────────────────────────
-
-  if (isSingleFile) {
-    // Single-file import: remove any existing targetDir first (to avoid stale
-    // files from a previous directory import), then create fresh and copy.
-    if (existsSync(targetDir)) {
-      rmSync(targetDir, { recursive: true, force: true })
-    }
-    mkdirSync(targetDir, { recursive: true })
-    copyFileSync(candidate.file, join(targetDir, 'persona.md'))
-  } else {
-    // Directory import: remove existing targetDir first so that files present
-    // in the old source but absent from the new source do not linger.
-    if (existsSync(targetDir)) {
-      rmSync(targetDir, { recursive: true, force: true })
-    }
-    cpSync(candidate.dir, targetDir, { recursive: true })
-  }
-
-  // ── 6. Write lock entry (来源与内容账本) ────────────────────────────────
-
-  const lockPath = join(home, '.lock.json')
-  const lock = readLock(lockPath)
-
-  const now = new Date().toISOString()
-  const existing = lock.personas[id]
-  const maskFolderHash = computeFolderHash(targetDir)
-
-  lock.personas[id] = {
-    sourceType: 'local',
-    sourceUrl: resolvedSource,
-    maskFolderHash,
-    importedAt: existing?.importedAt ?? now,
-    updatedAt: now,
-  }
-
-  writeLock(lockPath, lock)
-
-  return 0
+    },
+  })
 }
