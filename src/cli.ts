@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
+import { runAdd } from './add.js'
 import { listMaskIds } from './library.js'
 import { parsePersonaMd } from './persona-md.js'
 import { personaHome } from './paths.js'
@@ -99,6 +100,7 @@ function main(argv: string[]): number {
 
   if (command === 'list') return runList()
   if (command === 'use') return runUse(rest)
+  if (command === 'add') return runAdd(rest)
   if (command !== undefined && RESERVED_COMMANDS.has(command)) return runReserved(command, rest)
 
   process.stderr.write(`persona: unknown command: ${command ?? '(none)'}\n`)
