@@ -1,0 +1,211 @@
+[$brainstorming](/Users/jfmoe/.agents/skills/brainstorming/SKILL.md) 我想要创建一个基于node的cli，使用typescript技术栈，用于给claude code、codex等agents注入cosplay提示词，粗略设想是将通用部分放在一个用户级路径，通过提示词指向这个路径，采用渐进式披露原则。你需要先阅读我收集的资料，然后和我讨论一下架构设计
+
+---
+
+试试
+补充：参考这个cli的设计[vercel-labs/skills](https://github.com/vercel-labs/skills)
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+a
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+C 首批只支持 claude code
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+https://code.claude.com/docs/en/output-styles
+
+设置 keep-coding-instructions: true
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+a
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+c
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+b
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51479/
+
+## My request for Codex:
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+全局角色库放在 ~/.persona/<role>
+cli 名改为 persona
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+对
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+install 、activate、remove 提供交互式和参数可选择目标agent，目前只支持claude
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+对
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+角色包设计满足我提供的参考资料要求吗
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+继续
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+## My request for Codex:
+继续
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+## My request for Codex:
+继续根据参考材料 review 角色包设计
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+4 不需要，其他的点修正一下
