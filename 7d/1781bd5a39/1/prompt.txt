@@ -1,0 +1,20 @@
+/to-prd 基于 CONTEXT.md、docs/2026-06-06-persona-cli-design.md 和 docs/adr/，为 persona CLI MVP 创建 PRD。
+
+---
+
+让 subagent review 基于设计文档review一下prd
+
+---
+
+/to-issues
+
+---
+
+按当前工作流，我应该怎么做
+1. 在当前会话继续
+2. 新开会话
+3. 使用什么skill和提示词
+
+---
+
+#1 落地了，接下来给我 #2 的提示词
