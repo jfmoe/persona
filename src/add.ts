@@ -33,7 +33,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
@@ -631,20 +631,38 @@ async function runAddGitHub(
 
   try {
     // ── Shallow clone ──────────────────────────────────────────────────────
-
-    let cloneCmd = `git clone --depth 1`
-    if (parsed.ref !== undefined) {
-      cloneCmd += ` --branch ${parsed.ref}`
+    //
+    // Every git argument is passed through a `spawnSync` argv array (never a
+    // shell string), so a hostile `ref` like `main; rm -rf ~` cannot break out
+    // into the shell.
+    //
+    // We fetch the requested ref explicitly instead of `git clone --branch`:
+    // `--branch` only accepts branch/tag names, but a ref may also be a commit
+    // SHA (the CLI does not classify ref types — fetch success is the only
+    // validity test). `git fetch --depth 1 origin <ref>` shallow-fetches a
+    // branch, tag, or reachable commit SHA uniformly; `HEAD` covers the
+    // no-ref case (the remote's default branch).
+    const fetchRef = parsed.ref ?? 'HEAD'
+    const gitSteps: string[][] = [
+      ['init', '-q', tmpDir],
+      ['-C', tmpDir, 'remote', 'add', 'origin', cloneUrl],
+      ['-C', tmpDir, 'fetch', '--depth', '1', 'origin', fetchRef],
+      ['-C', tmpDir, 'checkout', '-q', '--detach', 'FETCH_HEAD'],
+    ]
+    for (const args of gitSteps) {
+      const result = spawnSync('git', args, { stdio: 'pipe', encoding: 'utf8' })
+      if (result.status !== 0) {
+        const detail = (result.stderr || (result.error ? String(result.error) : '')).trim()
+        const atRef = parsed.ref !== undefined ? ` at ref "${parsed.ref}"` : ''
+        process.stderr.write(`persona add: failed to clone ${cloneUrl}${atRef}: ${detail}\n`)
+        return 1
+      }
     }
-    cloneCmd += ` "${cloneUrl}" "${tmpDir}"`
 
-    try {
-      execSync(cloneCmd, { stdio: 'pipe' })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      process.stderr.write(`persona add: failed to clone ${cloneUrl}: ${msg}\n`)
-      return 1
-    }
+    // Drop the `.git` metadata directory before discovery/import: it must not
+    // be scanned for symlinks, copied into the mask folder, or folded into
+    // `maskFolderHash` (which would make the hash non-deterministic).
+    rmSync(join(tmpDir, '.git'), { recursive: true, force: true })
 
     // ── Determine search root inside the clone ─────────────────────────────
 
@@ -672,17 +690,18 @@ async function runAddGitHub(
     const buildLockEntry = (_id: string, targetDir: string, existing: LockEntry | undefined): GitHubLockEntry => {
       const now = new Date().toISOString()
       const maskFolderHash = computeFolderHash(targetDir)
+      // Build with a stable field order (ref right after sourceUrl, matching
+      // the interface and the PRD lock example) so serialized entries are
+      // deterministic whether or not a ref is present.
       const entry: GitHubLockEntry = {
         sourceType: 'github',
         source: parsed.source,
         sourceUrl,
+        ...(parsed.ref !== undefined ? { ref: parsed.ref } : {}),
         maskPath,
         maskFolderHash,
         importedAt: existing?.importedAt ?? now,
         updatedAt: now,
-      }
-      if (parsed.ref !== undefined) {
-        entry.ref = parsed.ref
       }
       return entry
     }

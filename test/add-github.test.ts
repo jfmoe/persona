@@ -48,6 +48,10 @@ function makeLocalGitRepo(owner: string, repo: string, files: Record<string, str
   git('git init')
   git('git config user.email "test@persona.test"')
   git('git config user.name "Persona Test"')
+  // Allow `git fetch origin <sha>` over the local file:// transport so the
+  // commit-SHA ref test can shallow-fetch a specific commit.
+  git('git config uploadpack.allowAnySHA1InWant true')
+  git('git config uploadpack.allowReachableSHA1InWant true')
   git('git checkout -b main')
 
   for (const [relPath, content] of Object.entries(files)) {
@@ -172,7 +176,7 @@ describe('persona add — GitHub source', () => {
 
   // ── Slice 4: owner/repo#ref@id — ref + persona id ────────────────────────
 
-  it('clones with --branch when ref is specified (owner/repo#main@id)', () => {
+  it('shallow-fetches the requested branch ref (owner/repo#main@id)', () => {
     makeLocalGitRepo('owner', 'repo', {
       'persona.md': VALID_PERSONA_MD,
     })
@@ -183,6 +187,36 @@ describe('persona add — GitHub source', () => {
     expect(code).toBe(0)
     expect(stderr).toBe('')
     expect(h.exists('.persona/senpai-rust/persona.md')).toBe(true)
+  })
+
+  it('shallow-fetches by commit SHA ref (owner/repo#<sha>@id)', () => {
+    const repoDir = makeLocalGitRepo('owner', 'repo', {
+      'persona.md': VALID_PERSONA_MD,
+    })
+    const sha = execSync('git rev-parse HEAD', { cwd: repoDir, encoding: 'utf8' }).trim()
+
+    // `--branch` cannot check out a SHA; the implementation fetches the ref
+    // directly, so a commit SHA must work the same as a branch/tag.
+    const { code, stderr } = h.run(['add', `owner/repo#${sha}@senpai-rust`])
+
+    expect(code).toBe(0)
+    expect(stderr).toBe('')
+    expect(h.exists('.persona/senpai-rust/persona.md')).toBe(true)
+
+    const lock = JSON.parse(h.readFile('.persona/.lock.json'))
+    expect(lock.personas['senpai-rust'].ref).toBe(sha)
+  })
+
+  it('does not copy the .git directory into the imported mask', () => {
+    makeLocalGitRepo('owner', 'repo', {
+      'persona.md': VALID_PERSONA_MD,
+    })
+
+    const { code } = h.run(['add', 'owner/repo@senpai-rust'])
+
+    expect(code).toBe(0)
+    expect(h.exists('.persona/senpai-rust/persona.md')).toBe(true)
+    expect(h.exists('.persona/senpai-rust/.git')).toBe(false)
   })
 
   // ── Slice 5: multi-mask remote — non-interactive hard fail ────────────────
