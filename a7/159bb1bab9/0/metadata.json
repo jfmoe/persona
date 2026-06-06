@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.7.5",
+  "checkpoint_id": "a7159bb1bab9",
+  "session_id": "019e9c7a-28e1-7723-a172-ae6b02076d5e",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-06T12:11:10.731843Z",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "docs/superpowers/specs/2026-06-06-persona-cli-design.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.4",
+  "turn_id": "e647204cbfab",
+  "token_usage": {
+    "input_tokens": 11554,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 485,
+    "api_call_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-06T12:11:10.728284Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 308,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 308,
+    "total_lines_changed": 308,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 659,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 7,
+        "AI-Agent-Cosplay-研究报告.md": 219,
+        "Claude-Code-会话隔离方案.md": 98,
+        "工程实现建议.md": 335
+      }
+    }
+  ]
+}

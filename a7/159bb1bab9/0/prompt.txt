@@ -1,0 +1,1 @@
+[$brainstorming](/Users/jfmoe/.agents/skills/brainstorming/SKILL.md) 我想要创建一个基于node的cli，使用typescript技术栈，用于给claude code、codex等agents注入cosplay提示词，粗略设想是将通用部分放在一个用户级路径，通过提示词指向这个路径，采用渐进式披露原则。你需要先阅读我收集的资料，然后和我讨论一下架构设计

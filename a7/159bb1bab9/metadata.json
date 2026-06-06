@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.7.5",
+  "checkpoint_id": "a7159bb1bab9",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "docs/superpowers/specs/2026-06-06-persona-cli-design.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a7/159bb1bab9/0/metadata.json",
+      "transcript": "/a7/159bb1bab9/0/full.jsonl",
+      "content_hash": "/a7/159bb1bab9/0/content_hash.txt",
+      "prompt": "/a7/159bb1bab9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 11554,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "output_tokens": 485,
+    "api_call_count": 1
+  }
+}
