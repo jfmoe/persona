@@ -291,7 +291,54 @@ describe('persona add — local source', () => {
     expect(keys).toEqual([...keys].sort())
   })
 
-  // ── Slice 8: manually placed masks remain first-class ────────────────────
+  // ── Slice 8: --force replacement is exact (no stale files) ─────────────
+
+  it('--force re-import of a directory mask with fewer files removes the extra old files', () => {
+    // First import: mask with persona.md + extra.md + notes.md
+    const first = mkSourceDir(sourceRoot, 'first-src')
+    writeIn(first, 'persona.md', VALID_PERSONA_MD)
+    writeIn(first, 'extra.md', 'will be removed')
+    writeIn(first, 'notes.md', 'also removed')
+
+    const { code: c1 } = h.run(['add', first])
+    expect(c1).toBe(0)
+    expect(h.exists('.persona/senpai-rust/extra.md')).toBe(true)
+    expect(h.exists('.persona/senpai-rust/notes.md')).toBe(true)
+
+    // Second source: same mask id but only persona.md (no extra/notes)
+    const second = mkSourceDir(sourceRoot, 'second-src')
+    writeIn(second, 'persona.md', VALID_PERSONA_MD)
+
+    const { code: c2 } = h.run(['add', second, '--force'])
+    expect(c2).toBe(0)
+
+    // extra.md and notes.md must be gone — targetDir equals new source exactly
+    expect(h.exists('.persona/senpai-rust/persona.md')).toBe(true)
+    expect(h.exists('.persona/senpai-rust/extra.md')).toBe(false)
+    expect(h.exists('.persona/senpai-rust/notes.md')).toBe(false)
+  })
+
+  it('single-file --force import over an existing directory mask leaves only persona.md', () => {
+    // First import via directory (has persona.md + memory.md)
+    const dir = mkSourceDir(sourceRoot, 'dir-src')
+    writeIn(dir, 'persona.md', VALID_PERSONA_MD)
+    writeIn(dir, 'memory.md', 'old memory')
+
+    const { code: c1 } = h.run(['add', dir])
+    expect(c1).toBe(0)
+    expect(h.exists('.persona/senpai-rust/memory.md')).toBe(true)
+
+    // Second import: single file, same id
+    const maskFile = writeIn(sourceRoot, 'new.md', VALID_PERSONA_MD)
+    const { code: c2 } = h.run(['add', maskFile, '--force'])
+    expect(c2).toBe(0)
+
+    // Only persona.md should remain; memory.md must be gone
+    expect(h.exists('.persona/senpai-rust/persona.md')).toBe(true)
+    expect(h.exists('.persona/senpai-rust/memory.md')).toBe(false)
+  })
+
+  // ── Slice 9: manually placed masks remain first-class ────────────────────
 
   it('does not break list for manually placed masks that have no lock entry', () => {
     // Seed a mask directly (bypassing `add`) — no lock entry.

@@ -95,7 +95,7 @@ function runReserved(command: string, rest: string[]): number {
 
 const RESERVED_COMMANDS = new Set(['install', 'activate', 'remove'])
 
-function main(argv: string[]): number {
+async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv
 
   if (command === 'list') return runList()
@@ -107,4 +107,7 @@ function main(argv: string[]): number {
   return 2
 }
 
-process.exit(main(process.argv.slice(2)))
+main(process.argv.slice(2)).then((code) => process.exit(code)).catch((err) => {
+  process.stderr.write(`persona: unexpected error: ${String(err)}\n`)
+  process.exit(1)
+})

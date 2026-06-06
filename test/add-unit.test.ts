@@ -3,6 +3,8 @@
  *  - path-safe id validation
  *  - two-level discovery
  *  - symlink detection
+ *  - readLock structural fallback (malformed / structurally invalid JSON)
+ *  - parseChoice / parseYesNo pure interactive helpers
  *
  * These functions are tested via their observable CLI behaviour but the
  * path-safety and discovery logic is also tested here at the function level
@@ -21,6 +23,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { parseChoice, parseYesNo } from '../src/add.js'
 
 // ── Re-export the functions under test by importing from add.ts
 // Since these are internal helpers, we expose them only for tests via a
@@ -244,5 +247,140 @@ describe('persona add — symlink detection', () => {
     // but not nested). The spec says "任意 symlink 一律硬失败" so expect code 1.
     expect(code).toBe(1)
     expect(stderr).toMatch(/symlink/i)
+  })
+})
+
+// ─── readLock structural fallback ────────────────────────────────────────────
+
+describe('persona add — readLock falls back to empty ledger on structural invalid lock', () => {
+  let h: Harness
+  let sourceRoot: string
+
+  beforeEach(() => {
+    h = createHarness()
+    sourceRoot = tmpDir()
+  })
+
+  afterEach(() => {
+    h.cleanup()
+    rmSync(sourceRoot, { recursive: true, force: true })
+  })
+
+  it('does not crash and still imports when .lock.json is {} (no personas key)', () => {
+    // Write a structurally invalid lock file (valid JSON but missing personas).
+    h.writeFile('.persona/.lock.json', '{}')
+
+    const f = join(sourceRoot, 'mask.md')
+    writeFileSync(f, VALID_PERSONA_MD)
+
+    const { code } = h.run(['add', f])
+
+    expect(code).toBe(0)
+    // The lock should now have a valid entry
+    const lock = JSON.parse(h.readFile('.persona/.lock.json'))
+    expect(lock.personas['senpai-rust']).toBeDefined()
+  })
+
+  it('does not crash and still imports when .lock.json has a non-object personas value', () => {
+    // personas is an array — structurally invalid.
+    h.writeFile('.persona/.lock.json', JSON.stringify({ version: 1, personas: ['not-an-object'] }))
+
+    const f = join(sourceRoot, 'mask.md')
+    writeFileSync(f, VALID_PERSONA_MD)
+
+    const { code } = h.run(['add', f])
+
+    expect(code).toBe(0)
+    const lock = JSON.parse(h.readFile('.persona/.lock.json'))
+    expect(lock.personas['senpai-rust']).toBeDefined()
+  })
+
+  it('does not crash when .lock.json is valid JSON but a bare string', () => {
+    h.writeFile('.persona/.lock.json', '"just-a-string"')
+
+    const f = join(sourceRoot, 'mask.md')
+    writeFileSync(f, VALID_PERSONA_MD)
+
+    const { code } = h.run(['add', f])
+
+    expect(code).toBe(0)
+  })
+})
+
+// ─── parseChoice pure logic ──────────────────────────────────────────────────
+
+describe('parseChoice — interactive selection index parser', () => {
+  it('returns 0-based index for a valid 1-based selection', () => {
+    expect(parseChoice('1', 3)).toBe(0)
+    expect(parseChoice('2', 3)).toBe(1)
+    expect(parseChoice('3', 3)).toBe(2)
+  })
+
+  it('returns null for input below 1', () => {
+    expect(parseChoice('0', 3)).toBeNull()
+  })
+
+  it('returns null for input above count', () => {
+    expect(parseChoice('4', 3)).toBeNull()
+  })
+
+  it('returns null for non-numeric input', () => {
+    expect(parseChoice('abc', 3)).toBeNull()
+    expect(parseChoice('', 3)).toBeNull()
+    expect(parseChoice('  ', 3)).toBeNull()
+  })
+
+  it('returns null for decimal input', () => {
+    expect(parseChoice('1.5', 3)).toBeNull()
+  })
+
+  it('strips surrounding whitespace before parsing', () => {
+    expect(parseChoice('  2  ', 3)).toBe(1)
+  })
+})
+
+// ─── parseYesNo pure logic ───────────────────────────────────────────────────
+
+describe('parseYesNo — y/N prompt parser', () => {
+  it('returns true for "y"', () => {
+    expect(parseYesNo('y')).toBe(true)
+  })
+
+  it('returns true for "Y" (case-insensitive)', () => {
+    expect(parseYesNo('Y')).toBe(true)
+  })
+
+  it('returns true for "yes"', () => {
+    expect(parseYesNo('yes')).toBe(true)
+  })
+
+  it('returns true for "YES"', () => {
+    expect(parseYesNo('YES')).toBe(true)
+  })
+
+  it('returns false for "n"', () => {
+    expect(parseYesNo('n')).toBe(false)
+  })
+
+  it('returns false for "N"', () => {
+    expect(parseYesNo('N')).toBe(false)
+  })
+
+  it('returns false for empty string (default No)', () => {
+    expect(parseYesNo('')).toBe(false)
+  })
+
+  it('returns false for whitespace-only input', () => {
+    expect(parseYesNo('  ')).toBe(false)
+  })
+
+  it('returns false for any other input', () => {
+    expect(parseYesNo('maybe')).toBe(false)
+    expect(parseYesNo('1')).toBe(false)
+  })
+
+  it('strips surrounding whitespace before matching', () => {
+    expect(parseYesNo('  y  ')).toBe(true)
+    expect(parseYesNo('  yes  ')).toBe(true)
   })
 })

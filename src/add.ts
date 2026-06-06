@@ -22,9 +22,11 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { createInterface } from 'node:readline'
 import { dirname, join, resolve, basename } from 'node:path'
 import { parseArgs } from 'node:util'
 import { parsePersonaMd } from './persona-md.js'
@@ -202,11 +204,106 @@ function selectFromMultiple(
   return null
 }
 
+// ─── interactive helpers (pure logic — unit-testable) ─────────────────────────
+
+/**
+ * Parse a 1-based numeric choice from `input` against a list of `count` items.
+ * Returns the 0-based index if the input is a valid integer in [1, count], or
+ * `null` if the input is invalid.
+ *
+ * Pure function — no I/O. Exported for unit tests.
+ */
+export function parseChoice(input: string, count: number): number | null {
+  const trimmed = input.trim()
+  if (!/^\d+$/.test(trimmed)) return null
+  const n = parseInt(trimmed, 10)
+  if (n < 1 || n > count) return null
+  return n - 1 // convert to 0-based
+}
+
+/**
+ * Parse a yes/no confirmation from `input`.
+ * Returns `true` for "y" / "yes" (case-insensitive), `false` for anything else
+ * (including empty input → default No).
+ *
+ * Pure function — no I/O. Exported for unit tests.
+ */
+export function parseYesNo(input: string): boolean {
+  const trimmed = input.trim().toLowerCase()
+  return trimmed === 'y' || trimmed === 'yes'
+}
+
+/**
+ * Prompt the user to choose from `candidates` interactively.
+ * Writes the numbered list to stdout and reads a line from stdin.
+ * Returns the selected candidate, or `null` if the user gives invalid input.
+ */
+async function promptSelectCandidate(candidates: MaskCandidate[]): Promise<MaskCandidate | null> {
+  const ids = candidates.map((c) => {
+    const parsed = parsePersonaMd(readFileSync(c.file, 'utf8'))
+    return parsed.frontmatter['id'] ?? basename(c.dir)
+  })
+
+  process.stdout.write('persona add: source contains multiple persona masks.\n')
+  process.stdout.write('Select one:\n')
+  for (let i = 0; i < ids.length; i++) {
+    process.stdout.write(`  ${i + 1}) ${ids[i]}\n`)
+  }
+  process.stdout.write(`Enter number [1-${ids.length}]: `)
+
+  const answer = await readOneLine()
+  const idx = parseChoice(answer, candidates.length)
+  if (idx === null) {
+    process.stderr.write(`persona add: invalid selection "${answer.trim()}"\n`)
+    return null
+  }
+  return candidates[idx]!
+}
+
+/**
+ * Prompt the user to confirm an overwrite interactively.
+ * Returns `true` if the user confirms.
+ */
+async function promptOverwrite(id: string, targetDir: string): Promise<boolean> {
+  process.stdout.write(
+    `persona add: mask "${id}" already exists at ${targetDir}\nOverwrite? [y/N] `,
+  )
+  const answer = await readOneLine()
+  return parseYesNo(answer)
+}
+
+/**
+ * Read a single line from stdin (resolves immediately when the user hits Enter).
+ */
+function readOneLine(): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: undefined, terminal: false })
+    let line = ''
+    rl.once('line', (l) => {
+      line = l
+      rl.close()
+    })
+    rl.once('close', () => resolve(line))
+  })
+}
+
 /** Read the lock file, or return an empty ledger. */
 function readLock(lockPath: string): LockFile {
   if (!existsSync(lockPath)) return { version: 1, personas: {} }
   try {
-    return JSON.parse(readFileSync(lockPath, 'utf8')) as LockFile
+    const parsed: unknown = JSON.parse(readFileSync(lockPath, 'utf8'))
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      'personas' in parsed &&
+      typeof (parsed as Record<string, unknown>)['personas'] === 'object' &&
+      (parsed as Record<string, unknown>)['personas'] !== null &&
+      !Array.isArray((parsed as Record<string, unknown>)['personas'])
+    ) {
+      return parsed as LockFile
+    }
+    return { version: 1, personas: {} }
   } catch {
     return { version: 1, personas: {} }
   }
@@ -232,8 +329,12 @@ function writeLock(lockPath: string, lock: LockFile): void {
  * Options:
  *   --persona <id>   Select a specific mask from a multi-mask source
  *   --force          Overwrite an existing mask in ~/.persona/
+ *
+ * Interactive behaviour (only when `process.stdin.isTTY === true`):
+ *   - Multiple masks found and --persona not given: numbered selection prompt.
+ *   - Target already exists and --force not given: y/N overwrite prompt.
  */
-export function runAdd(rest: string[]): number {
+export async function runAdd(rest: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
     args: rest,
     options: {
@@ -312,19 +413,42 @@ export function runAdd(rest: string[]): number {
         return 1
       }
 
-      // Multiple masks found — non-interactive must fail or use --persona
+      // Multiple masks found
       if (shallowCandidates.length > 1) {
-        const selected = selectFromMultiple(shallowCandidates, values.persona)
-        if (selected === null) return 1
-        candidate = selected
+        if (values.persona !== undefined) {
+          // --persona given: filter by id (synchronous)
+          const selected = selectFromMultiple(shallowCandidates, values.persona)
+          if (selected === null) return 1
+          candidate = selected
+        } else if (process.stdin.isTTY) {
+          // Interactive selection
+          const selected = await promptSelectCandidate(shallowCandidates)
+          if (selected === null) return 1
+          candidate = selected
+        } else {
+          // Non-interactive hard fail
+          const selected = selectFromMultiple(shallowCandidates, undefined)
+          if (selected === null) return 1
+          candidate = selected
+        }
       } else {
         candidate = shallowCandidates[0]!
       }
     } else {
       // directCandidates.length > 1: multiple at root level
-      const selected = selectFromMultiple(directCandidates, values.persona)
-      if (selected === null) return 1
-      candidate = selected
+      if (values.persona !== undefined) {
+        const selected = selectFromMultiple(directCandidates, values.persona)
+        if (selected === null) return 1
+        candidate = selected
+      } else if (process.stdin.isTTY) {
+        const selected = await promptSelectCandidate(directCandidates)
+        if (selected === null) return 1
+        candidate = selected
+      } else {
+        const selected = selectFromMultiple(directCandidates, undefined)
+        if (selected === null) return 1
+        candidate = selected
+      }
     }
   } else {
     process.stderr.write(`persona add: source is neither a file nor a directory: ${resolvedSource}\n`)
@@ -355,26 +479,39 @@ export function runAdd(rest: string[]): number {
   const targetDir = join(home, id)
 
   if (existsSync(targetDir) && !values.force) {
-    process.stderr.write(
-      `persona add: mask "${id}" already exists at ${targetDir} — use --force to overwrite\n`,
-    )
-    return 1
+    if (process.stdin.isTTY) {
+      // Interactive: ask the user
+      const confirmed = await promptOverwrite(id, targetDir)
+      if (!confirmed) {
+        process.stderr.write(`persona add: import cancelled\n`)
+        return 1
+      }
+    } else {
+      // Non-interactive hard fail
+      process.stderr.write(
+        `persona add: mask "${id}" already exists at ${targetDir} — use --force to overwrite\n`,
+      )
+      return 1
+    }
   }
 
   // ── 5. Copy mask into ~/.persona/<id>/ ──────────────────────────────────
 
   if (isSingleFile) {
-    // Single-file import: create directory and copy file as persona.md
+    // Single-file import: remove any existing targetDir first (to avoid stale
+    // files from a previous directory import), then create fresh and copy.
+    if (existsSync(targetDir)) {
+      rmSync(targetDir, { recursive: true, force: true })
+    }
     mkdirSync(targetDir, { recursive: true })
     copyFileSync(candidate.file, join(targetDir, 'persona.md'))
   } else {
-    // Directory import: copy the entire directory
+    // Directory import: remove existing targetDir first so that files present
+    // in the old source but absent from the new source do not linger.
     if (existsSync(targetDir)) {
-      // Remove existing dir when --force
-      cpSync(candidate.dir, targetDir, { recursive: true, force: true })
-    } else {
-      cpSync(candidate.dir, targetDir, { recursive: true })
+      rmSync(targetDir, { recursive: true, force: true })
     }
+    cpSync(candidate.dir, targetDir, { recursive: true })
   }
 
   // ── 6. Write lock entry (来源与内容账本) ────────────────────────────────
