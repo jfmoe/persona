@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { VALID_PERSONA_MD } from './fixtures.js'
 import { createHarness, type Harness } from './harness.js'
 
-describe('reserved multi-agent commands (activate, remove)', () => {
+describe('reserved multi-agent commands (remove)', () => {
   let h: Harness
 
   beforeEach(() => {
@@ -13,7 +13,7 @@ describe('reserved multi-agent commands (activate, remove)', () => {
     h.cleanup()
   })
 
-  it.each(['activate', 'remove'])(
+  it.each(['remove'])(
     'recognizes `%s` with a --agent option but reports it is not yet implemented',
     (command) => {
       const { stderr, code } = h.run([command, 'senpai-rust', '--agent', 'claude-code'])
@@ -25,11 +25,31 @@ describe('reserved multi-agent commands (activate, remove)', () => {
       expect(stderr).toMatch(/not yet implemented/i)
     },
   )
+})
 
-  it('activate: shows the resolved target agent in the not-yet-implemented message', () => {
+describe('activate command (face-mask activation)', () => {
+  let h: Harness
+
+  beforeEach(() => {
+    h = createHarness()
+  })
+
+  afterEach(() => {
+    h.cleanup()
+  })
+
+  it('is not reported as an unknown command', () => {
+    h.seedMask('senpai-rust', { 'persona.md': VALID_PERSONA_MD })
+    // Not installed yet — fails, but not with "unknown command"
+    const { stderr } = h.run(['activate', 'senpai-rust', '--agent', 'claude-code'])
+    expect(stderr).not.toMatch(/unknown command/i)
+  })
+
+  it('alias "claude" is resolved to "claude-code" in error messages', () => {
+    // Mask exists but not installed — the error message should name the
+    // canonical agent id, not the user-supplied alias.
+    h.seedMask('senpai-rust', { 'persona.md': VALID_PERSONA_MD })
     const { stderr } = h.run(['activate', 'senpai-rust', '--agent', 'claude'])
-
-    // The alias `claude` must be resolved to `claude-code` in the message.
     expect(stderr).toContain('claude-code')
   })
 })
