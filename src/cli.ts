@@ -12,6 +12,7 @@ import { validateMask } from './validator.js'
 import { resolveAgent, selectAgent, DEFAULT_AGENT, SUPPORTED_AGENTS } from './adapter-registry.js'
 import { renderOutputStyle } from './install.js'
 import { mergeOutputStyle } from './activate.js'
+import { runRemove } from './remove.js'
 
 function runList(): number {
   const ids = listMaskIds(personaHome())
@@ -357,7 +358,7 @@ function runReserved(command: string, rest: string[]): number {
   return 1
 }
 
-const RESERVED_COMMANDS = new Set(['remove'])
+const RESERVED_COMMANDS = new Set<string>([])
 
 async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv
@@ -367,6 +368,7 @@ async function main(argv: string[]): Promise<number> {
   if (command === 'add') return runAdd(rest)
   if (command === 'install') return runInstall(rest)
   if (command === 'activate') return runActivate(rest)
+  if (command === 'remove') return runRemove(rest)
   if (command !== undefined && RESERVED_COMMANDS.has(command)) return runReserved(command, rest)
 
   process.stderr.write(`persona: unknown command: ${command ?? '(none)'}\n`)

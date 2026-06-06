@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { VALID_PERSONA_MD } from './fixtures.js'
 import { createHarness, type Harness } from './harness.js'
 
-describe('reserved multi-agent commands (remove)', () => {
+describe('persona remove (multi-agent command shape)', () => {
   let h: Harness
 
   beforeEach(() => {
@@ -13,18 +13,16 @@ describe('reserved multi-agent commands (remove)', () => {
     h.cleanup()
   })
 
-  it.each(['remove'])(
-    'recognizes `%s` with a --agent option but reports it is not yet implemented',
-    (command) => {
-      const { stderr, code } = h.run([command, 'senpai-rust', '--agent', 'claude-code'])
+  it('recognizes `remove` with a --agent option (not an unknown command)', () => {
+    // Mask not installed → artifact not found, but the command IS recognised.
+    h.seedMask('senpai-rust', { 'persona.md': VALID_PERSONA_MD })
+    const { stderr, code } = h.run(['remove', 'senpai-rust', '--agent', 'claude-code'])
 
-      // Recognized command (not an "unknown command" error) ...
-      expect(stderr).not.toMatch(/unknown command/i)
-      // ... but the behavior is reserved for a later slice.
-      expect(code).not.toBe(0)
-      expect(stderr).toMatch(/not yet implemented/i)
-    },
-  )
+    // Recognised (not "unknown command")
+    expect(stderr).not.toMatch(/unknown command/i)
+    // Hard-fails because the artifact has not been installed
+    expect(code).not.toBe(0)
+  })
 })
 
 describe('activate command (face-mask activation)', () => {

@@ -31,17 +31,17 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve, basename } from 'node:path'
+import { join, resolve, basename } from 'node:path'
 import { parseArgs } from 'node:util'
 import { parsePersonaMd } from './persona-md.js'
 import { personaHome } from './paths.js'
 import { validateMask } from './validator.js'
+import { lockPath, readLock, writeLock, type LockEntry, type GitHubLockEntry } from './lock.js'
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -51,34 +51,6 @@ interface MaskCandidate {
   dir: string
   /** Absolute path to the `persona.md` file. */
   file: string
-}
-
-// ─── lock file types ─────────────────────────────────────────────────────────
-
-interface LocalLockEntry {
-  sourceType: 'local'
-  sourceUrl: string
-  maskFolderHash: string
-  importedAt: string
-  updatedAt: string
-}
-
-interface GitHubLockEntry {
-  sourceType: 'github'
-  source: string
-  sourceUrl: string
-  ref?: string
-  maskPath: string
-  maskFolderHash: string
-  importedAt: string
-  updatedAt: string
-}
-
-type LockEntry = LocalLockEntry | GitHubLockEntry
-
-interface LockFile {
-  version: 1
-  personas: Record<string, LockEntry>
 }
 
 // ─── GitHub source parsing ────────────────────────────────────────────────────
@@ -176,7 +148,7 @@ export function parseGitHubSource(input: string): ParsedGitHubSource | null {
  * underscores, and dots — no slashes, no dots at the start, no empty segments.
  * This prevents path traversal via the id (ADR-0003).
  */
-function isPathSafeId(id: string): boolean {
+export function isPathSafeId(id: string): boolean {
   return /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(id) && !id.includes('/') && !id.includes('\\')
 }
 
@@ -398,40 +370,6 @@ function readOneLine(): Promise<string> {
   })
 }
 
-/** Read the lock file, or return an empty ledger. */
-function readLock(lockPath: string): LockFile {
-  if (!existsSync(lockPath)) return { version: 1, personas: {} }
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(lockPath, 'utf8'))
-    if (
-      parsed !== null &&
-      typeof parsed === 'object' &&
-      !Array.isArray(parsed) &&
-      'personas' in parsed &&
-      typeof (parsed as Record<string, unknown>)['personas'] === 'object' &&
-      (parsed as Record<string, unknown>)['personas'] !== null &&
-      !Array.isArray((parsed as Record<string, unknown>)['personas'])
-    ) {
-      return parsed as LockFile
-    }
-    return { version: 1, personas: {} }
-  } catch {
-    return { version: 1, personas: {} }
-  }
-}
-
-/** Write the lock file with personas keys sorted. */
-function writeLock(lockPath: string, lock: LockFile): void {
-  const sorted: LockFile = {
-    version: lock.version,
-    personas: Object.fromEntries(
-      Object.entries(lock.personas).sort(([a], [b]) => a.localeCompare(b)),
-    ),
-  }
-  mkdirSync(dirname(lockPath), { recursive: true })
-  writeFileSync(lockPath, JSON.stringify(sorted, null, 2) + '\n', 'utf8')
-}
-
 // ─── shared import pipeline ───────────────────────────────────────────────────
 
 /**
@@ -583,13 +521,13 @@ async function importFromDirectory(
 
   // ── Write lock entry (来源与内容账本) ────────────────────────────────────
 
-  const lockPath = join(home, '.lock.json')
-  const lock = readLock(lockPath)
+  const lp = lockPath(home)
+  const lock = readLock(lp)
   const existing = lock.personas[id]
 
   lock.personas[id] = opts.buildLockEntry(id, targetDir, existing)
 
-  writeLock(lockPath, lock)
+  writeLock(lp, lock)
 
   return 0
 }
