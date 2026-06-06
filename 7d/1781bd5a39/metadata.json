@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.7.5",
+  "checkpoint_id": "7d1781bd5a39",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 61,
+  "files_touched": [
+    "CONTEXT.md",
+    "docs/adr/0001-persona-masks-apply-only-to-main-session-expression-layer.md",
+    "docs/adr/0002-safety-guardrails-are-not-declared-by-persona-masks.md",
+    "docs/adr/0003-lock-file-is-a-source-and-content-ledger.md",
+    "docs/superpowers/specs/2026-06-06-persona-cli-design.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/7d/1781bd5a39/0/metadata.json",
+      "transcript": "/7d/1781bd5a39/0/full.jsonl",
+      "content_hash": "/7d/1781bd5a39/0/content_hash.txt",
+      "prompt": "/7d/1781bd5a39/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 241389,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 13902848,
+    "output_tokens": 57593,
+    "api_call_count": 163
+  }
+}
