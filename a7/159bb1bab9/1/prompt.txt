@@ -209,3 +209,39 @@ install 、activate、remove 提供交互式和参数可选择目标agent，目�
 
 ## My request for Codex:
 4 不需要，其他的点修正一下
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+确认
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+对
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+对
+
+---
+
+# In app browser:
+- The user has the in-app browser open.
+- Current URL: http://localhost:51403/
+
+## My request for Codex:
+批准
