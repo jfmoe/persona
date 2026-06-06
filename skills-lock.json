@@ -19,6 +19,11 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "ef32aea0a8fab9b365ff9e08a95f8d353e20ca21ea46ec2e73587c86dd341351"
     },
+    "land-issues": {
+      "source": "/Users/jfmoe/Coder/skills",
+      "sourceType": "local",
+      "computedHash": "dc87e930bd70d3058800b0a2c216192c77bb11ccc108d0b5bfa3bad0b3b868e9"
+    },
     "prototype": {
       "source": "mattpocock/skills",
       "sourceType": "github",
