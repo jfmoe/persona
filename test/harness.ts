@@ -3,12 +3,18 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(here, '..')
 const CLI_ENTRY = resolve(REPO_ROOT, 'src', 'cli.ts')
 const TMP_ROOT = realpathSync(tmpdir())
+// Resolve the tsx ESM loader via Node's module resolution from this file's
+// location so it works even when node_modules lives in a parent directory
+// (e.g. git worktrees). Using the absolute path ensures the loader is found
+// when the spawned process's cwd is outside the repo root (--project tests).
+const TSX_ESM_LOADER = createRequire(import.meta.url).resolve('tsx/esm')
 
 /** Captured result of one `persona` invocation. */
 export interface RunResult {
@@ -81,7 +87,7 @@ export function createHarness(): Harness {
     claudeDir,
 
     run(args, opts = {}): RunResult {
-      const result = spawnSync(process.execPath, ['--import', 'tsx', CLI_ENTRY, ...args], {
+      const result = spawnSync(process.execPath, ['--import', TSX_ESM_LOADER, CLI_ENTRY, ...args], {
         cwd: opts.cwd ?? REPO_ROOT,
         encoding: 'utf8',
         env: {

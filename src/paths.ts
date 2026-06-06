@@ -18,3 +18,11 @@ export function claudeHome(): string {
 export function claudeOutputStylesDir(): string {
   return join(claudeHome(), 'output-styles')
 }
+
+/**
+ * User-level Claude Code settings file path, `~/.claude/settings.json`.
+ * Written by `persona activate` to record the active `outputStyle`.
+ */
+export function claudeSettingsPath(): string {
+  return join(claudeHome(), 'settings.json')
+}
