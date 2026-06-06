@@ -1,0 +1,58 @@
+你是 persona CLI 项目的实现编排者(orchestrator)。仓库 jfmoe/persona。
+issue #2、#3 已实现并合并:项目骨架、临时 HOME 集成测试 harness、persona use 的
+validator 与 renderer 已存在。你的任务是编排实现剩余 5 个 issue——你自己不写实现代码,
+每个 issue 派一个 sonnet subagent 实现,subagent 完成后由你(主会话)review 并 merge PR。
+
+## 剩余 issue 与依赖图
+- #4 add 本地来源(文件+目录,发现+lock)   ← 已解锁,可立即开始
+- #6 install(Claude Code Output Style adapter) ← 已解锁,可立即开始
+- #5 add GitHub 来源                          ← 需 #4 合并后
+- #7 activate(settings 合并)                 ← 需 #6 合并后
+- #8 remove(面具/targeted artifact/lock)     ← 需 #6 和 #7 合并后
+
+两条链 `#4→#5` 与 `#6→#7→#8` 可并行推进,链内严格串行。
+
+## 每个 issue 的执行流程
+1. 派 subagent:用 Agent 工具,model 指定 sonnet,isolation 用 worktree
+   (每个 issue 在独立 worktree+分支,避免并行改动冲突)。
+2. 给 subagent 的指令固定包含:
+   - 先 `gh issue view <N>` 读完整验收标准,再读 CONTEXT.md 和 docs/adr/。
+   - 复用已有的项目骨架与临时 HOME 集成测试 harness,不要另起一套;
+     复用 issue #3 已建的 validator/renderer(add 复用 validator;install 复用 renderer 产出 Output Style)。
+   - 用 TDD red-green-refactor 实现:先调用 /tdd skill 走它的流程;无论 skill 是否生效,
+     都遵守纪律——先写一个会失败的测试(red)、最小实现让它通过(green)、再重构(refactor),
+     每个验收标准至少对应一个测试。测试按 PRD Testing Decisions:
+     CLI 边界集成测试为主轴,纯逻辑用单元测试补充。
+   - 术语严格遵循 CONTEXT.md glossary;遵守 ADR-0001(面具只作用于主会话表达层)、
+     ADR-0002(安全护栏不由面具声明)、ADR-0003(lock 是来源与内容账本)。
+   - 完成后跑全部测试,在自己的分支上开一个 PR,PR body 引用对应 issue,
+     最终返回 PR 编号/分支名和一句话变更摘要。
+3. subagent 返回后,你(主会话)亲自 review:
+   - 跑 /code-review,并在该 worktree 里跑测试套件。
+   - 逐条核对该 issue 的验收标准是否真的满足;核对术语与 ADR 合规。
+   - 不通过:用 SendMessage 把具体反馈发回同一个 subagent 修,直到通过。
+   - 通过:`gh pr merge --squash`,然后才派发被它解锁的下游 issue。
+
+## 编排顺序
+- 第一波:并行派 #4 和 #6 两个 subagent。
+- #4 合并后派 #5;#6 合并后派 #7;#7 合并后派 #8。
+- `#5` 与 `#7/#8` 链可并行。
+
+## 合并注意
+greenfield 代码库,多个分支可能都改了共享文件(命令注册、package.json 等)。
+按完成顺序逐个 merge,一次只 merge 一个;后合并的分支若与 main 分叉,
+让对应 subagent 先 rebase/解决冲突再 merge,下游 subagent 一律基于最新 main 开 worktree。
+
+现在先 `gh issue view 4` 和 `gh issue view 6` 确认验收标准,然后开始第一波。
+
+---
+
+issue帮我关掉，prd 需要关掉吗
+
+---
+
+/skill-creator:skill-creator 根据你从这个会话学到的经验，创建一个skill用于在to-issue后编排subagent完成所有issue的落地
+
+---
+
+提交skill代码，安装到当前项目级

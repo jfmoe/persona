@@ -1,0 +1,109 @@
+{
+  "cli_version": "0.7.5",
+  "checkpoint_id": "f221b487027c",
+  "session_id": "574cf969-2136-42ac-b35b-f65fdcd165f0",
+  "strategy": "manual-commit",
+  "created_at": "2026-06-06T16:40:10.347488Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".agents/skills/land-issues/SKILL.md",
+    ".agents/skills/land-issues/references/implementer-prompt.md",
+    ".agents/skills/land-issues/references/reviewer-prompt.md",
+    ".superpowers/brainstorm/81879-1780745722/content/design-architecture-v1.html",
+    ".superpowers/brainstorm/81879-1780745722/content/design-architecture-v2.html",
+    ".superpowers/brainstorm/81879-1780745722/content/design-commands-v1.html",
+    ".superpowers/brainstorm/81879-1780745722/content/design-package-v1.html",
+    ".superpowers/brainstorm/81879-1780745722/content/design-package-v2.html",
+    ".superpowers/brainstorm/81879-1780745722/state/server-stopped",
+    ".superpowers/brainstorm/81879-1780745722/state/server.pid",
+    ".superpowers/brainstorm/86670-1780742135/content/architecture-options-v1.html",
+    ".superpowers/brainstorm/86670-1780742135/content/design-architecture-v1.html",
+    ".superpowers/brainstorm/86670-1780742135/content/waiting-1.html",
+    ".superpowers/brainstorm/86670-1780742135/state/server-stopped",
+    ".superpowers/brainstorm/86670-1780742135/state/server.pid",
+    "skills-lock.json"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-8[1m]",
+  "turn_id": "aec77762e8c5",
+  "token_usage": {
+    "input_tokens": 28628,
+    "cache_creation_tokens": 340268,
+    "cache_read_tokens": 22892924,
+    "output_tokens": 129877,
+    "api_call_count": 131
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-skill-creator:skill-creator-2026-06-06T16:25:36.523293Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "skill-creator:skill-creator"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "cd8a9e5f2822",
+      "timestamp": "2026-06-06T16:25:36.523293Z",
+      "native": {
+        "command": "/skill-creator:skill-creator"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/skill-creator:skill-creator",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-06-06T16:40:10.322588Z",
+    "agent_lines": 150,
+    "agent_removed": 453,
+    "human_added": 1,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 151,
+    "total_lines_changed": 604,
+    "agent_percentage": 99.83443708609272,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 7,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 7
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 7,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 7
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 7,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".claude/settings.local.json": 7
+      }
+    }
+  ]
+}
