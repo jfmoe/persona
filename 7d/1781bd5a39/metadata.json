@@ -3,7 +3,7 @@
   "checkpoint_id": "7d1781bd5a39",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 66,
+  "checkpoints_count": 70,
   "files_touched": [
     ".agents/skills/diagnose/SKILL.md",
     ".agents/skills/diagnose/scripts/hitl-loop.template.sh",
@@ -36,6 +36,7 @@
     ".agents/skills/triage/OUT-OF-SCOPE.md",
     ".agents/skills/triage/SKILL.md",
     ".agents/skills/zoom-out/SKILL.md",
+    ".gitignore",
     ".superpowers/brainstorm/81879-1780745722/content/design-architecture-v1.html",
     ".superpowers/brainstorm/81879-1780745722/content/design-architecture-v2.html",
     ".superpowers/brainstorm/81879-1780745722/content/design-commands-v1.html",
@@ -60,7 +61,18 @@
     "docs/agents/issue-tracker.md",
     "docs/agents/triage-labels.md",
     "docs/superpowers/specs/2026-06-06-persona-cli-design.md",
-    "skills-lock.json"
+    "package-lock.json",
+    "package.json",
+    "skills-lock.json",
+    "src/cli.ts",
+    "src/library.ts",
+    "src/paths.ts",
+    "test/commands.test.ts",
+    "test/harness.test.ts",
+    "test/harness.ts",
+    "test/list.test.ts",
+    "tsconfig.json",
+    "vitest.config.ts"
   ],
   "sessions": [
     {
@@ -74,13 +86,19 @@
       "transcript": "/7d/1781bd5a39/1/full.jsonl",
       "content_hash": "/7d/1781bd5a39/1/content_hash.txt",
       "prompt": "/7d/1781bd5a39/1/prompt.txt"
+    },
+    {
+      "metadata": "/7d/1781bd5a39/2/metadata.json",
+      "transcript": "/7d/1781bd5a39/2/full.jsonl",
+      "content_hash": "/7d/1781bd5a39/2/content_hash.txt",
+      "prompt": "/7d/1781bd5a39/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 245400,
-    "cache_creation_tokens": 92148,
-    "cache_read_tokens": 15492795,
-    "output_tokens": 111110,
-    "api_call_count": 188
+    "input_tokens": 251480,
+    "cache_creation_tokens": 253848,
+    "cache_read_tokens": 18606267,
+    "output_tokens": 161235,
+    "api_call_count": 238
   }
 }

@@ -1,0 +1,17 @@
+/tdd 实现 issue #2(persona CLI:项目骨架 + 集成测试 harness + persona list)。
+先 gh issue view 2 读完整验收标准,再读 CONTEXT.md 和 docs/adr/。
+这是 greenfield:先立 TS/Node CLI bootstrap 和临时 HOME 集成测试 harness
+(后续所有切片都复用它),再用 red-green-refactor 实现 persona list。
+术语严格遵循 CONTEXT.md glossary。
+
+---
+
+/claude-code-setup:claude-automation-recommender
+
+---
+
+1、2 这两点优化一下
+
+---
+
+落地
