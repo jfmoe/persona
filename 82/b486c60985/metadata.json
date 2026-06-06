@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.7.5",
+  "checkpoint_id": "82b486c60985",
+  "strategy": "manual-commit",
+  "branch": "feat/persona-use-3",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/cli.ts",
+    "src/persona-md.ts",
+    "src/renderer.ts",
+    "src/validator.ts",
+    "test/fixtures.ts",
+    "test/use.test.ts",
+    "test/validator.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/82/b486c60985/0/metadata.json",
+      "transcript": "/82/b486c60985/0/full.jsonl",
+      "content_hash": "/82/b486c60985/0/content_hash.txt",
+      "prompt": "/82/b486c60985/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 4507,
+    "cache_creation_tokens": 120768,
+    "cache_read_tokens": 3492805,
+    "output_tokens": 47497,
+    "api_call_count": 49
+  }
+}

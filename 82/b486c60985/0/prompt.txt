@@ -1,0 +1,23 @@
+/tdd 实现 issue #3(persona CLI:persona use —— 校验 + 渲染临时套用提示词到 stdout)。
+先 gh issue view 3 读完整验收标准,再读 CONTEXT.md 和 docs/adr/(尤其 ADR-0002 安全护栏)。
+
+复用切片 #1(issue #2)已立起的 TS/Node 骨架与临时 HOME 集成测试 harness,
+不要另起一套。
+
+这是面具的核心价值路径,打穿 validator + renderer 两层,用 red-green-refactor:
+
+- validator:渲染前跑全部硬失败分支(缺必填 frontmatter / 缺任一必填正文段落 /
+  缺显式知识边界 / 情景示例 < 2 / 无示例覆盖不确定性 / 明显恶意指令);
+  缺失可选文件不告警。只接受 CONTEXT.md / PRD 里那套 canonical 英文段落标题。
+- renderer:混合渐进式披露——摘要 + 四维度 + 两示例 + 表达边界 +
+  不可关闭护栏(ADR-0002,面具无法关闭)+ 面具路径;memory.md/examples.md 不内联只暴露路径。
+- 输出不含 Output Style frontmatter;过长打 warning 到 stderr 不改退出码;schema 错误阻塞 use。
+
+测试按 PRD Testing Decisions:CLI 边界集成测试为主轴,validator 各硬失败分支用单元测试补充。
+术语严格遵循 CONTEXT.md glossary(人格面具 / 主会话表达层 / 结构保真 / 临时套用 等)。
+完成后跑一遍测试,再开 PR。
+
+几点提醒:
+
+- renderer 是下游复用点:切片 #5(install,issue #6)会复用这里的 renderer 产出 Output Style。所以渲染逻辑要设计成「核心面具内容编译」与「输出包装(stdout 纯文本 vs Output Style frontmatter)」可分离——这样 #6 只在外面套 frontmatter。可以在提示词末尾补一句让它注意这个接缝。
+- validator 也是下游复用点:#4(add)会在导入后复用它。
