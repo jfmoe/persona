@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createInterface } from 'node:readline'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { runAdd } from './add.js'
@@ -8,7 +9,7 @@ import { parsePersonaMd } from './persona-md.js'
 import { personaHome, claudeOutputStylesDir } from './paths.js'
 import { compilePersonaPrompt } from './renderer.js'
 import { validateMask } from './validator.js'
-import { resolveAgent, DEFAULT_AGENT } from './adapter-registry.js'
+import { resolveAgent, selectAgent, DEFAULT_AGENT, SUPPORTED_AGENTS } from './adapter-registry.js'
 import { renderOutputStyle } from './install.js'
 
 function runList(): number {
@@ -65,21 +66,64 @@ function runUse(rest: string[]): number {
 }
 
 /**
+ * Prompt the user interactively to choose a target agent from `candidates`.
+ *
+ * Lists each candidate with a 1-based index, then reads one line from stdin.
+ * Delegates to `selectAgent` for the resolution logic. Retries up to
+ * `maxAttempts` times on invalid input before giving up.
+ *
+ * Returns the canonical agent name, or `undefined` if the user exhausted
+ * retries or closed stdin without a valid selection.
+ */
+async function promptAgentSelection(
+  candidates: readonly string[],
+  maxAttempts = 3,
+): Promise<string | undefined> {
+  process.stdout.write('Select a target agent:\n')
+  for (let i = 0; i < candidates.length; i++) {
+    process.stdout.write(`  ${i + 1}) ${candidates[i]}\n`)
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+
+  const askOnce = (): Promise<string> =>
+    new Promise((resolve) => {
+      rl.question('Your choice (name or number): ', (answer) => {
+        resolve(answer)
+      })
+    })
+
+  try {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const answer = await askOnce()
+      const resolved = selectAgent(answer, candidates)
+      if (resolved !== undefined) return resolved
+      process.stdout.write(
+        `Invalid choice "${answer.trim()}". Please enter a number (1–${candidates.length}) or agent name.\n`,
+      )
+    }
+    return undefined
+  } finally {
+    rl.close()
+  }
+}
+
+/**
  * `persona install <id> [--agent <agent>] [--yes]` — face-mask installation
  * (面具安装). Validates the persona mask, renders it as a Claude Code Output
  * Style artifact, and writes it to `~/.claude/output-styles/<id>.md`.
  *
- * Target-agent selection rules (non-interactive stdin = harness / CI / pipe):
+ * Target-agent selection rules:
  *   - `--agent <name>`: use the named agent (alias-resolved).
  *   - `--yes`:          use the default agent without prompting.
- *   - neither:          hard-fail; interactive mode would prompt but stdout/stdin
- *                       are non-TTY in automated contexts, so we refuse to guess.
+ *   - neither + TTY:    interactively prompt the user to choose an agent.
+ *   - neither + non-TTY: hard-fail; automated contexts must be explicit.
  *
  * `install` only writes the Output Style file (ADR-0001). It does not:
  *   - enable the style (no settings.json changes, no outputStyle field)
  *   - write CLAUDE.md, AGENTS.md, hooks, or subagent definitions
  */
-function runInstall(rest: string[]): number {
+async function runInstall(rest: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
     args: rest,
     options: {
@@ -110,21 +154,22 @@ function runInstall(rest: string[]): number {
   } else if (values.yes) {
     targetAgent = DEFAULT_AGENT
   } else {
-    // Non-interactive hard-fail: don't guess the target agent.
+    // Branching on TTY vs non-TTY -----------------------------------------
     const isTTY = process.stdin.isTTY === true
     if (!isTTY) {
+      // Non-interactive hard-fail: don't guess the target agent.
       process.stderr.write(
         'persona install: non-interactive mode requires --agent <agent> or --yes (to use the default agent)\n',
       )
       return 2
     }
-    // Interactive TTY: in the MVP we don't implement a full prompt, so we
-    // surface the same message to keep the CLI honest about what's needed.
-    // A future slice can replace this branch with an inquirer-style chooser.
-    process.stderr.write(
-      'persona install: please specify a target agent with --agent claude-code (or --yes to accept the default)\n',
-    )
-    return 2
+    // Interactive TTY: present a numbered list and let the user choose.
+    const chosen = await promptAgentSelection([...SUPPORTED_AGENTS])
+    if (chosen === undefined) {
+      process.stderr.write('persona install: no valid agent selected; aborting\n')
+      return 2
+    }
+    targetAgent = chosen
   }
 
   // Load and validate the mask -----------------------------------------------

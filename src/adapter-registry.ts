@@ -33,3 +33,35 @@ const AGENT_ALIASES: Record<string, SupportedAgent> = {
 export function resolveAgent(agent: string): SupportedAgent | undefined {
   return AGENT_ALIASES[agent]
 }
+
+/**
+ * Pure function: resolve a user's interactive input to a canonical agent from
+ * a given list of candidates.
+ *
+ * Accepts:
+ *   - A canonical agent name (e.g. `"claude-code"`) — resolved via the alias map.
+ *   - A known alias (e.g. `"claude"`).
+ *   - A 1-based numeric index string (e.g. `"1"`) selecting from `candidates`.
+ *
+ * Returns the resolved canonical agent, or `undefined` if the input is invalid.
+ * Leading/trailing whitespace is trimmed before matching.
+ *
+ * Keeping the selection logic here (not in cli.ts) allows unit-testing without
+ * any readline or TTY machinery.
+ */
+export function selectAgent(input: string, candidates: readonly string[]): string | undefined {
+  const trimmed = input.trim()
+  if (trimmed === '') return undefined
+
+  // Try alias / canonical name first.
+  const byAlias = AGENT_ALIASES[trimmed]
+  if (byAlias !== undefined) return byAlias
+
+  // Try 1-based numeric index.
+  const n = Number(trimmed)
+  if (Number.isInteger(n) && n >= 1 && n <= candidates.length) {
+    return candidates[n - 1]
+  }
+
+  return undefined
+}

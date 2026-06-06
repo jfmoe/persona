@@ -45,8 +45,8 @@ export function renderOutputStyle(parsed: ParsedMask, maskDir: string): Rendered
   const fm = parsed.frontmatter
   const frontmatter = [
     '---',
-    `name: ${fm.name ?? fm.id ?? 'unknown'}`,
-    `description: ${fm.description ?? ''}`,
+    `name: ${JSON.stringify(fm.name ?? fm.id ?? 'unknown')}`,
+    `description: ${JSON.stringify(fm.description ?? '')}`,
     'keep-coding-instructions: true',
     '---',
   ].join('\n')
