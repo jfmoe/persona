@@ -1,0 +1,43 @@
+<h2>persona CLI: command surface</h2>
+<p class="subtitle">install / activate / remove support interactive target selection and --agent flags. MVP only exposes Claude Code.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Command responsibilities</div>
+  <div class="mockup-body">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+      <div class="placeholder">
+        <strong>persona install &lt;role&gt;</strong><br>
+        choose target agent interactively<br>
+        or pass --agent claude-code<br>
+        write output style only
+      </div>
+      <div class="placeholder">
+        <strong>persona activate &lt;role&gt;</strong><br>
+        choose target agent interactively<br>
+        or pass --agent claude-code<br>
+        update outputStyle setting
+      </div>
+      <div class="placeholder">
+        <strong>persona remove &lt;role&gt;</strong><br>
+        remove package by default<br>
+        optionally remove agent installs<br>
+        never delete unrelated config
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px;">
+      <div class="placeholder">
+        <strong>Agent registry</strong><br>
+        canonical id: claude-code<br>
+        alias: claude<br>
+        future: codex
+      </div>
+      <div class="placeholder">
+        <strong>Non-interactive mode</strong><br>
+        --agent claude-code<br>
+        --yes for defaults<br>
+        clear errors when target unsupported
+      </div>
+    </div>
+  </div>
+</div>

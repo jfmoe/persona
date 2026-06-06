@@ -1,0 +1,96 @@
+<h2>Agent Cosplay CLI: architecture choices</h2>
+<p class="subtitle">Use this as a visual map while we discuss scope. Click an option if one direction feels closer.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Compile and install</div>
+        <div class="mockup-body">
+          <div class="mock-nav">personas/*.md</div>
+          <div style="display:grid;grid-template-columns:1fr;gap:10px;margin:12px 0;">
+            <div class="placeholder">validate schema + guardrails</div>
+            <div class="placeholder">render agent adapters</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="mock-button">Claude output style</span>
+            <span class="mock-button">Claude hook file</span>
+            <span class="mock-button">Codex profile</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Compiler-first</h3>
+      <p>Persona files are the source of truth. The CLI validates them and writes generated files into each target agent location.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Canonical store + symlinks</div>
+        <div class="mockup-body">
+          <div class="mock-nav">~/.config/agent-cosplay/personas</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0;">
+            <div class="placeholder">project link</div>
+            <div class="placeholder">global link</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="mock-button">install</span>
+            <span class="mock-button">use</span>
+            <span class="mock-button">update</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Skills-style installer</h3>
+      <p>Borrow the `vercel-labs/skills` pattern: canonical copy, optional symlink/copy into agent-specific destinations, and lock metadata.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Prompt-only runtime</div>
+        <div class="mockup-body">
+          <div class="mock-nav">cosplay use senpai-rust</div>
+          <div style="display:grid;grid-template-columns:1fr;gap:10px;margin:12px 0;">
+            <div class="placeholder">read persona + memory</div>
+            <div class="placeholder">print progressive prompt</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="mock-button">pipe to claude</span>
+            <span class="mock-button">pipe to codex</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Use without installing</h3>
+      <p>Generate only the prompt for one session. Low risk and easy to test, but weaker for persistent role switching.</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons" style="margin-top:18px;">
+  <div class="pros">
+    <h4>Shared design anchors</h4>
+    <ul>
+      <li>Never write persona into CLAUDE.md or AGENTS.md.</li>
+      <li>Keep functional subagents unstyled.</li>
+      <li>Force scenario examples to avoid flat persona prompts.</li>
+      <li>Separate source persona, compiled prompt, and agent install target.</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>Open decisions</h4>
+    <ul>
+      <li>Global-first vs project-first source storage.</li>
+      <li>Whether compiled artifacts are committed or ignored.</li>
+      <li>How much of memory/retrieval belongs in MVP.</li>
+      <li>Which command set is the first release boundary.</li>
+    </ul>
+  </div>
+</div>
