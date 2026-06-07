@@ -1,0 +1,4 @@
+interface:
+  display_name: "Persona Mask Generator"
+  short_description: "Generate auditable persona mask directories"
+  default_prompt: "Use $persona-mask-generator to generate a complete persona mask directory from my source materials."
