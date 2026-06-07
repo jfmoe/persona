@@ -1,6 +1,6 @@
 ---
 name: land-issues
-description: Orchestrate subagents to implement and merge a whole set of tracker issues end-to-end, respecting their dependency graph. Use this whenever the user has a batch of issues to land — especially right after `to-issues` produces them — or says things like "implement all the issues", "land the tracker", "orchestrate subagents to build these out", "ship issues #4-#8", or "drive these to merged PRs". Use it even when the user only implies a multi-issue build-out rather than naming this skill.
+description: Manual-only.
 ---
 
 # Land Issues
@@ -13,7 +13,7 @@ The single most important mindset: a subagent reporting "all tests green" is **n
 
 - A batch of issues exists on the tracker, each with acceptance criteria and (usually) a `Blocked by` dependency list.
 - `gh` CLI is authenticated; `main` is clean; the test suite runs locally.
-- The repo has enough scaffolding (skeleton, test harness, shared modules) that issues are *vertical slices to build on*, not a blank page.
+- The repo has enough scaffolding (skeleton, test harness, shared modules) that issues are _vertical slices to build on_, not a blank page.
 
 If issues don't exist yet, that's `to-issues`' job — run that first.
 
@@ -23,7 +23,7 @@ Build the graph from each issue's `Blocked by`. Then work in **waves**:
 
 - **Wave 1**: every currently-unblocked issue, dispatched in parallel.
 - Merging an issue **unlocks** its dependents → dispatch those next.
-- Independent chains run concurrently; within a chain, strictly serial (downstream branches from the *merged* result of upstream).
+- Independent chains run concurrently; within a chain, strictly serial (downstream branches from the _merged_ result of upstream).
 
 Example from a real run: `#4→#5` and `#6→#7→#8` were two chains. Wave 1 = `#4` + `#6` in parallel. When `#4` merged, `#5` started; when `#6` merged, `#7`; `#7` merged → `#8`. The two chains advanced concurrently.
 
@@ -32,8 +32,8 @@ Example from a real run: `#4→#5` and `#6→#7→#8` were two chains. Wave 1 = 
 Before dispatching anything, read the things every subagent will need so you can hand them precise instructions instead of making each one rediscover the repo:
 
 - `gh issue view <N>` for **every** issue — acceptance criteria and `Blocked by`.
-- Domain docs: `CONTEXT.md` / glossary, `docs/adr/*` (architectural decisions the code must honor), `CLAUDE.md`/`AGENTS.md`, and the parent **PRD/epic** issue (it usually states *testing decisions* — e.g. "CLI-boundary integration tests as the main axis, unit tests for pure logic").
-- The existing **skeleton, test harness, and shared modules**. Note the concrete reuse points (validators, renderers, a temp-HOME test harness, path helpers, a lock/ledger module). This list is the biggest quality lever you have — telling each subagent *exactly which existing code to reuse instead of rebuild* prevents divergent, duplicated implementations.
+- Domain docs: `CONTEXT.md` / glossary, `docs/adr/*` (architectural decisions the code must honor), `CLAUDE.md`/`AGENTS.md`, and the parent **PRD/epic** issue (it usually states _testing decisions_ — e.g. "CLI-boundary integration tests as the main axis, unit tests for pure logic").
+- The existing **skeleton, test harness, and shared modules**. Note the concrete reuse points (validators, renderers, a temp-HOME test harness, path helpers, a lock/ledger module). This list is the biggest quality lever you have — telling each subagent _exactly which existing code to reuse instead of rebuild_ prevents divergent, duplicated implementations.
 
 ## Step 1 — Dispatch one implementation subagent per issue
 
@@ -53,7 +53,7 @@ For each PR, do all three:
 
 Two modes — pick per the user's preference (ask once if unsure; some users want you hands-on, some want the subagent to redo it):
 
-- **Send it back to the implementer subagent.** If you can continue the same agent (e.g. a SendMessage/continue capability), give it specific, itemized feedback. If you *can't* continue it, spawn a fresh `sonnet` subagent pointed at the **existing worktree path** (plain Agent call, **not** `isolation: worktree`, which would create a new one) and have it push to the same branch/PR.
+- **Send it back to the implementer subagent.** If you can continue the same agent (e.g. a SendMessage/continue capability), give it specific, itemized feedback. If you _can't_ continue it, spawn a fresh `sonnet` subagent pointed at the **existing worktree path** (plain Agent call, **not** `isolation: worktree`, which would create a new one) and have it push to the same branch/PR.
 - **Fix it yourself** directly in the worktree.
 
 Either way: re-run `npm test`/the suite **and** typecheck after fixing, and add a test for each fix (every bug becomes a regression test).
